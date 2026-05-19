@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import '../models/difficulty.dart';
 import '../services/score_service.dart';
 
 class StatsScreen extends StatefulWidget {
@@ -12,6 +13,14 @@ class StatsScreen extends StatefulWidget {
 class _StatsScreenState extends State<StatsScreen> {
   List<ScoreRecord> _records = [];
   bool _loading = true;
+  DifficultyLevel? _filter; // null = All
+
+  List<ScoreRecord> get _filtered => _filter == null
+      ? _records
+      : _records
+          .where((r) =>
+              r.difficulty == DifficultyConfig.stringFromLevel(_filter!))
+          .toList();
 
   @override
   void initState() {
@@ -26,18 +35,21 @@ class _StatsScreenState extends State<StatsScreen> {
 
   // ── Summary helpers ──────────────────────────────────────────────────────
 
-  int get _played => _records.length;
-  int get _solved => _records.where((r) => r.solved).length;
-  double get _avgScore =>
-      _played == 0 ? 0 : _records.map((r) => r.score).reduce((a, b) => a + b) / _played;
-  double get _bestScore =>
-      _played == 0 ? 0 : _records.map((r) => r.score).reduce((a, b) => a > b ? a : b);
+  int get _played => _filtered.length;
+  int get _solved => _filtered.where((r) => r.solved).length;
+  double get _avgScore => _played == 0
+      ? 0
+      : _filtered.map((r) => r.score).reduce((a, b) => a + b) / _played;
+  double get _bestScore => _played == 0
+      ? 0
+      : _filtered.map((r) => r.score).reduce((a, b) => a > b ? a : b);
 
   // ── Chart data ───────────────────────────────────────────────────────────
 
   /// Last 50 games as FlSpots (x = game index, y = score).
   List<FlSpot> get _spots {
-    final recent = _records.length > 50 ? _records.sublist(_records.length - 50) : _records;
+    final recent =
+        _filtered.length > 50 ? _filtered.sublist(_filtered.length - 50) : _filtered;
     return [
       for (int i = 0; i < recent.length; i++) FlSpot(i.toDouble(), recent[i].score),
     ];
@@ -60,6 +72,8 @@ class _StatsScreenState extends State<StatsScreen> {
               : ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
+                    _filterBar(),
+                    const SizedBox(height: 12),
                     _summaryRow(),
                     const SizedBox(height: 20),
                     _chartCard(),
@@ -67,6 +81,21 @@ class _StatsScreenState extends State<StatsScreen> {
                     _historyList(),
                   ],
                 ),
+    );
+  }
+
+  Widget _filterBar() {
+    return SegmentedButton<DifficultyLevel?>(
+      segments: const [
+        ButtonSegment(value: null, label: Text('All')),
+        ButtonSegment(value: DifficultyLevel.easy, label: Text('Easy')),
+        ButtonSegment(
+            value: DifficultyLevel.intermediate, label: Text('Medium')),
+        ButtonSegment(value: DifficultyLevel.expert, label: Text('Expert')),
+      ],
+      selected: {_filter},
+      onSelectionChanged: (s) => setState(() => _filter = s.first),
+      style: ButtonStyle(visualDensity: VisualDensity.compact),
     );
   }
 
@@ -231,7 +260,7 @@ class _StatsScreenState extends State<StatsScreen> {
   // ── History list ──────────────────────────────────────────────────────────
 
   Widget _historyList() {
-    final reversed = _records.reversed.toList();
+    final reversed = _filtered.reversed.toList();
     return Card(
       elevation: 2,
       child: Column(
@@ -282,9 +311,8 @@ class _StatsScreenState extends State<StatsScreen> {
       title: Text(dateStr,
           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
       subtitle: Text(
-        r.solved
-            ? 'Solved — all ${r.totalWords} words correct'
-            : '${r.correctWords} / ${r.totalWords} words correct',
+        '${DifficultyConfig.forLevel(DifficultyConfig.levelFromString(r.difficulty)).label}  •  '
+        '${r.solved ? 'Solved — all ${r.totalWords} words correct' : '${r.correctWords} / ${r.totalWords} words correct'}',
         style: const TextStyle(fontSize: 12),
       ),
       trailing: r.solved

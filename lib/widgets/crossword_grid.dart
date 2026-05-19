@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 /// Interactive crossword grid widget.
 ///
-/// State is public so an external [CrosswordKeyboard] can call
-/// [inputLetter], [deleteLetter], and [navigateWord] via a [GlobalKey].
+/// Keyboard input is handled externally via [inputLetter], [deleteLetter],
+/// and the hidden system-keyboard TextField in game_screen.
 class CrosswordGrid extends StatefulWidget {
   final List<List<String>> solutionGrid;
   final List<List<String>> displayGrid;
@@ -33,14 +32,6 @@ class CrosswordGridState extends State<CrosswordGrid> {
   int? _selY;
   String _dir = 'across'; // 'across' | 'down'
 
-  final FocusNode _focus = FocusNode();
-
-  @override
-  void dispose() {
-    _focus.dispose();
-    super.dispose();
-  }
-
   int get _rows => widget.solutionGrid.length;
   int get _cols => _rows > 0 ? widget.solutionGrid[0].length : 0;
   bool _isBlack(int x, int y) => widget.solutionGrid[y][x].isEmpty;
@@ -60,7 +51,6 @@ class CrosswordGridState extends State<CrosswordGrid> {
       _selY = y;
       _dir = orientation;
     });
-    _focus.requestFocus();
     widget.onSelectionChanged?.call(x, y, orientation);
   }
 
@@ -129,16 +119,13 @@ class CrosswordGridState extends State<CrosswordGrid> {
 
   void _onTap(int x, int y) {
     if (_isBlack(x, y)) return;
-    _focus.requestFocus();
     setState(() {
       if (_selX == x && _selY == y) {
-        // Same cell: toggle direction if the other direction has a word.
         final other = _dir == 'across' ? 'down' : 'across';
         if (_hasWordIn(x, y, other)) _dir = other;
       } else {
         _selX = x;
         _selY = y;
-        // Keep current direction if a word exists; otherwise switch.
         if (!_hasWordIn(x, y, _dir)) {
           _dir = _dir == 'across' ? 'down' : 'across';
         }
@@ -147,37 +134,13 @@ class CrosswordGridState extends State<CrosswordGrid> {
     widget.onSelectionChanged?.call(_selX!, _selY!, _dir);
   }
 
-  // ── Physical keyboard (desktop / Chromebook) ─────────────────────────────
-
-  KeyEventResult _onKey(FocusNode _, KeyEvent event) {
-    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return KeyEventResult.ignored;
-    if (_selX == null || _selY == null) return KeyEventResult.ignored;
-
-    final key = event.logicalKey;
-    if (key == LogicalKeyboardKey.arrowLeft)  { setState(() { _dir = 'across'; }); _advance(-1); return KeyEventResult.handled; }
-    if (key == LogicalKeyboardKey.arrowRight) { setState(() { _dir = 'across'; }); _advance( 1); return KeyEventResult.handled; }
-    if (key == LogicalKeyboardKey.arrowUp)    { setState(() { _dir = 'down';   }); _advance(-1); return KeyEventResult.handled; }
-    if (key == LogicalKeyboardKey.arrowDown)  { setState(() { _dir = 'down';   }); _advance( 1); return KeyEventResult.handled; }
-    if (key == LogicalKeyboardKey.backspace)  { deleteLetter(); return KeyEventResult.handled; }
-
-    final ch = event.character;
-    if (ch != null && RegExp(r'[a-zA-Z]').hasMatch(ch)) {
-      inputLetter(ch);
-      return KeyEventResult.handled;
-    }
-    return KeyEventResult.ignored;
-  }
-
   // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final inWord = _wordCells();
 
-    return Focus(
-      focusNode: _focus,
-      onKeyEvent: _onKey,
-      child: AspectRatio(
+    return AspectRatio(
         aspectRatio: 1,
         child: GridView.builder(
           physics: const NeverScrollableScrollPhysics(),
@@ -193,7 +156,6 @@ class CrosswordGridState extends State<CrosswordGrid> {
             return _buildCell(x, y, inWord);
           },
         ),
-      ),
     );
   }
 

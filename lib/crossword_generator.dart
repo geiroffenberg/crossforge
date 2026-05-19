@@ -10,8 +10,10 @@ class PlacedWord {
   int number;
   final String word; // UPPERCASE
   final String clue;
+
   /// Column of the first letter (0-indexed).
   final int x;
+
   /// Row of the first letter (0-indexed).
   final int y;
   final String orientation; // 'across' | 'down'
@@ -28,8 +30,7 @@ class PlacedWord {
   });
 
   @override
-  String toString() =>
-      'PlacedWord(#$number "$word" [$orientation] @ ($x,$y))';
+  String toString() => 'PlacedWord(#$number "$word" [$orientation] @ ($x,$y))';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -48,16 +49,15 @@ class CrosswordGenerator {
   /// word → {'definitions': [String]} — same shape built by the isolate helper.
   final Map<String, dynamic> dictionary;
 
-  static const int _kMinLen          = 3;
-  static const int _kMaxLen          = 9;
-  static const int _kMaxWords        = 22;
-  static const int _kMinWords        = 6;
-  // Maximum candidates examined per (length, letter) query.
-  static const int _kCandidateSample = 300;
+  final int _kMinLen;
+  final int _kMaxLen;
+  final int _kMaxWords;
+  final int _kMinWords;
+  final int _kCandidateSample;
 
   late List<List<String>> _grid;
-  final List<PlacedWord>  _placedWords = [];
-  Map<String, int>        _cellNumbers = {};
+  final List<PlacedWord> _placedWords = [];
+  Map<String, int> _cellNumbers = {};
 
   final Random _rng;
 
@@ -65,19 +65,29 @@ class CrosswordGenerator {
     required this.width,
     required this.height,
     required this.dictionary,
+    int minLen = 2,
+    int maxLen = 10,
+    int minWords = 15,
+    int maxWords = 28,
+    int candidateSample = 1000,
     Random? rng,
-  }) : _rng = rng ?? Random();
+  })  : _kMinLen = minLen,
+        _kMaxLen = maxLen,
+        _kMinWords = minWords,
+        _kMaxWords = maxWords,
+        _kCandidateSample = candidateSample,
+        _rng = rng ?? Random();
 
   // ── Public interface ──────────────────────────────────────────────────────
 
-  List<List<String>> getGrid()        => _grid;
-  List<PlacedWord>   getPlacedWords() => List.unmodifiable(_placedWords);
-  Map<String, int>   get cellNumbers  => _cellNumbers;
+  List<List<String>> getGrid() => _grid;
+  List<PlacedWord> getPlacedWords() => List.unmodifiable(_placedWords);
+  Map<String, int> get cellNumbers => _cellNumbers;
 
   /// Attempts to generate a valid crossword.
   /// Returns true when at least [_kMinWords] words are placed.
   bool generate() {
-    _grid        = List.generate(height, (_) => List.filled(width, ''));
+    _grid = List.generate(height, (_) => List.filled(width, ''));
     _placedWords.clear();
     _cellNumbers = {};
 
@@ -116,17 +126,17 @@ class CrosswordGenerator {
     final seedY = height ~/ 2;
     _placeWord(seed, seedX, seedY, 'across', wordDefs[seed]!);
 
-    final used  = <String>{seed};
+    final used = <String>{seed};
     final queue = <PlacedWord>[..._placedWords];
     int qi = 0;
 
     // ── Step 3: BFS expansion ─────────────────────────────────────────────
     while (qi < queue.length && _placedWords.length < _kMaxWords) {
-      final current  = queue[qi++];
+      final current = queue[qi++];
       final crossDir = current.orientation == 'across' ? 'down' : 'across';
 
-      final positions =
-          List.generate(current.word.length, (i) => i)..shuffle(_rng);
+      final positions = List.generate(current.word.length, (i) => i)
+        ..shuffle(_rng);
 
       for (final pos in positions) {
         if (_placedWords.length >= _kMaxWords) break;
@@ -141,8 +151,15 @@ class CrosswordGenerator {
         // Skip if this cell already has a crossing word.
         if (_hasCrossingWord(cx, cy, current.orientation)) continue;
 
-        final placed =
-            _tryCrossing(byLength, wordDefs, used, current.word[pos], cx, cy, crossDir);
+        final placed = _tryCrossing(
+          byLength,
+          wordDefs,
+          used,
+          current.word[pos],
+          cx,
+          cy,
+          crossDir,
+        );
         if (placed != null) {
           used.add(placed.word);
           queue.add(placed);
@@ -161,11 +178,19 @@ class CrosswordGenerator {
   void _placeWord(String word, int x, int y, String dir, String clue) {
     for (int i = 0; i < word.length; i++) {
       final cx = dir == 'across' ? x + i : x;
-      final cy = dir == 'down'   ? y + i : y;
+      final cy = dir == 'down' ? y + i : y;
       _grid[cy][cx] = word[i]; // already UPPERCASE
     }
-    _placedWords.add(PlacedWord(
-        number: 0, word: word, clue: clue, x: x, y: y, orientation: dir));
+    _placedWords.add(
+      PlacedWord(
+        number: 0,
+        word: word,
+        clue: clue,
+        x: x,
+        y: y,
+        orientation: dir,
+      ),
+    );
   }
 
   /// Find and place a word in [crossDir] through cell ([cx],[cy]),
@@ -179,9 +204,8 @@ class CrosswordGenerator {
     int cy,
     String crossDir,
   ) {
-    final lengths =
-        List.generate(_kMaxLen - _kMinLen + 1, (i) => i + _kMinLen)
-          ..shuffle(_rng);
+    final lengths = List.generate(_kMaxLen - _kMinLen + 1, (i) => i + _kMinLen)
+      ..shuffle(_rng);
 
     for (final len in lengths) {
       final words = byLength[len];
@@ -197,7 +221,7 @@ class CrosswordGenerator {
           if (word[crossPos] != letter) continue;
 
           final wx = crossDir == 'across' ? cx - crossPos : cx;
-          final wy = crossDir == 'down'   ? cy - crossPos : cy;
+          final wy = crossDir == 'down' ? cy - crossPos : cy;
 
           if (_canPlace(word, wx, wy, crossDir)) {
             _placeWord(word, wx, wy, crossDir, wordDefs[word]!);
@@ -233,22 +257,22 @@ class CrosswordGenerator {
   bool _canPlace(String word, int x, int y, String dir) {
     final len = word.length;
     if (x < 0 || y < 0) return false;
-    if (dir == 'across' && x + len > width)  return false;
-    if (dir == 'down'   && y + len > height) return false;
+    if (dir == 'across' && x + len > width) return false;
+    if (dir == 'down' && y + len > height) return false;
 
     // Cells immediately before and after must be empty or out-of-bounds.
     if (dir == 'across') {
-      if (x > 0           && _grid[y][x - 1].isNotEmpty)    return false;
-      if (x + len < width && _grid[y][x + len].isNotEmpty)  return false;
+      if (x > 0 && _grid[y][x - 1].isNotEmpty) return false;
+      if (x + len < width && _grid[y][x + len].isNotEmpty) return false;
     } else {
-      if (y > 0            && _grid[y - 1][x].isNotEmpty)   return false;
+      if (y > 0 && _grid[y - 1][x].isNotEmpty) return false;
       if (y + len < height && _grid[y + len][x].isNotEmpty) return false;
     }
 
     bool hasIntersection = false;
     for (int i = 0; i < len; i++) {
       final cx = dir == 'across' ? x + i : x;
-      final cy = dir == 'down'   ? y + i : y;
+      final cy = dir == 'down' ? y + i : y;
 
       if (_grid[cy][cx].isNotEmpty) {
         // Occupied cell: letter must match (valid intersection).
@@ -258,10 +282,10 @@ class CrosswordGenerator {
         // Empty cell: must not be adjacent to a parallel word
         // (would merge two words into one long word).
         if (dir == 'across') {
-          if (cy > 0          && _grid[cy - 1][cx].isNotEmpty) return false;
+          if (cy > 0 && _grid[cy - 1][cx].isNotEmpty) return false;
           if (cy < height - 1 && _grid[cy + 1][cx].isNotEmpty) return false;
         } else {
-          if (cx > 0         && _grid[cy][cx - 1].isNotEmpty) return false;
+          if (cx > 0 && _grid[cy][cx - 1].isNotEmpty) return false;
           if (cx < width - 1 && _grid[cy][cx + 1].isNotEmpty) return false;
         }
       }

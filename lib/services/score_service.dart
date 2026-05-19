@@ -14,12 +14,16 @@ class ScoreRecord {
   /// True when the player solved the puzzle without giving up.
   final bool solved;
 
+  /// Difficulty level: 'easy', 'intermediate', or 'expert'.
+  final String difficulty;
+
   const ScoreRecord({
     required this.date,
     required this.score,
     required this.totalWords,
     required this.correctWords,
     required this.solved,
+    this.difficulty = 'expert',
   });
 
   Map<String, dynamic> toJson() => {
@@ -28,6 +32,7 @@ class ScoreRecord {
         'totalWords': totalWords,
         'correctWords': correctWords,
         'solved': solved,
+        'difficulty': difficulty,
       };
 
   factory ScoreRecord.fromJson(Map<String, dynamic> json) => ScoreRecord(
@@ -36,6 +41,7 @@ class ScoreRecord {
         totalWords: json['totalWords'] as int,
         correctWords: json['correctWords'] as int,
         solved: json['solved'] as bool,
+        difficulty: json['difficulty'] as String? ?? 'expert',
       );
 }
 
