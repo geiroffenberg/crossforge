@@ -92,13 +92,26 @@ Map<String, dynamic> _buildPuzzleIsolate(Map<String, dynamic> params) {
 
   // ── Step 6: serialise result as plain types ───────────────────────────────
   final grid = gen.getGrid();
-  final words = gen.getPlacedWords().map((w) => <String, dynamic>{
-        'number': w.number,
-        'word': w.word,
-        'clue': w.clue,
-        'x': w.x,
-        'y': w.y,
-        'orientation': w.orientation,
+  final words = gen.getPlacedWords().map((w) {
+        // Look up synonyms from the raw dictionary (keys are UPPERCASE).
+        final entry = raw[w.word];
+        final rawSyns = (entry is Map ? entry['SYNONYMS'] : null) as List?;
+        final synonyms = rawSyns == null
+            ? <String>[]
+            : rawSyns
+                .whereType<String>()
+                .where((s) => s.isNotEmpty && s.toUpperCase() != w.word)
+                .take(6)
+                .toList();
+        return <String, dynamic>{
+          'number': w.number,
+          'word': w.word,
+          'clue': w.clue,
+          'x': w.x,
+          'y': w.y,
+          'orientation': w.orientation,
+          'synonyms': synonyms,
+        };
       }).toList();
 
   return {'grid': grid, 'words': words, 'cellNumbers': gen.cellNumbers};
@@ -118,6 +131,7 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen> {
   static const int _gridWidth = 10;
   static const int _gridHeight = 10;
+  static const int _kMaxHints = 5;
 
   final _gridKey = GlobalKey<CrosswordGridState>();
 
@@ -133,6 +147,8 @@ class _GameScreenState extends State<GameScreen> {
   bool _showSolution = false;
   bool _isLoading = true;
   String? _errorMessage;
+  int _hintsRemaining = _kMaxHints;
+  PlacedWord? _activeWord;
 
   @override
   void initState() {
@@ -198,6 +214,7 @@ class _GameScreenState extends State<GameScreen> {
           x: m['x'] as int,
           y: m['y'] as int,
           orientation: m['orientation'] as String,
+          synonyms: List<String>.from(m['synonyms'] as List? ?? []),
         );
       }).toList();
 
@@ -213,6 +230,7 @@ class _GameScreenState extends State<GameScreen> {
         _userAnswers = userAnswers;
         _cellNumbers = cellNumbers;
         _showSolution = false;
+        _hintsRemaining = _kMaxHints;
         _isLoading = false;
       });
     } catch (e) {
@@ -299,6 +317,107 @@ class _GameScreenState extends State<GameScreen> {
     return correct;
   }
 
+  /// Returns the [PlacedWord] the user currently has selected (matching both
+  /// cell position and direction), or null if nothing is selected.
+  PlacedWord? _selectedWord() {
+    final state = _gridKey.currentState;
+    if (state == null) return null;
+    final sel = state.selection;
+    if (sel.x == null || sel.y == null) return null;
+
+    for (final w in _placedWords) {
+      if (w.orientation != sel.direction) continue;
+      if (w.orientation == 'across') {
+        if (w.y == sel.y! && sel.x! >= w.x && sel.x! < w.x + w.word.length) return w;
+      } else {
+        if (w.x == sel.x! && sel.y! >= w.y && sel.y! < w.y + w.word.length) return w;
+      }
+    }
+    return null;
+  }
+
+  void _showHint() {
+    if (_hintsRemaining <= 0 || _showSolution) return;
+
+    final word = _selectedWord();
+    if (word == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Select a word first, then tap the hint button.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    final syns = word.synonyms;
+    if (syns.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No synonyms available for this word.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _hintsRemaining--);
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.lightbulb, color: Colors.amber),
+            const SizedBox(width: 8),
+            Text(
+              '${word.number}. ${word.orientation == 'across' ? 'Across' : 'Down'}',
+              style: const TextStyle(fontSize: 16),
+            ),
+            const Spacer(),
+            Text(
+              '$_hintsRemaining hint${_hintsRemaining == 1 ? '' : 's'} left',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Clue: ${word.clue}',
+              style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Synonyms:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: syns
+                  .map((s) => Chip(
+                        label: Text(s,
+                            style: const TextStyle(fontSize: 13)),
+                        backgroundColor: Colors.deepPurple.shade50,
+                      ))
+                  .toList(),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _giveUp() {
     final total   = _placedWords.length;
     final correct = _countCorrectWords();
@@ -363,6 +482,22 @@ class _GameScreenState extends State<GameScreen> {
                     ),
                   ]
                 : [
+                    // Hint button — shows badge with remaining count.
+                    Badge(
+                      label: Text('$_hintsRemaining'),
+                      isLabelVisible: _hintsRemaining < _kMaxHints,
+                      backgroundColor: Colors.amber.shade700,
+                      child: IconButton(
+                        icon: Icon(
+                          Icons.lightbulb_outline,
+                          color: _hintsRemaining > 0
+                              ? Colors.amber.shade300
+                              : Colors.white30,
+                        ),
+                        tooltip: '$_hintsRemaining hint${_hintsRemaining == 1 ? '' : 's'} remaining',
+                        onPressed: _hintsRemaining > 0 ? _showHint : null,
+                      ),
+                    ),
                     IconButton(
                       icon: const Icon(Icons.flag_outlined),
                       tooltip: 'Give Up & Show Solution',
@@ -440,6 +575,15 @@ class _GameScreenState extends State<GameScreen> {
                 showSolution: _showSolution,
                 cellNumbers: _cellNumbers,
                 onCellChanged: _updateCell,
+                onSelectionChanged: (x, y, dir) {
+                  setState(() {
+                    _activeWord = _placedWords.where((w) {
+                      if (w.orientation != dir) return false;
+                      if (dir == 'across') return w.y == y && x >= w.x && x < w.x + w.word.length;
+                      return w.x == x && y >= w.y && y < w.y + w.word.length;
+                    }).firstOrNull;
+                  });
+                },
               ),
             ),
           ),
@@ -457,7 +601,15 @@ class _GameScreenState extends State<GameScreen> {
         Expanded(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-            child: CluePanel(placedWords: _placedWords),
+            child: CluePanel(
+              placedWords: _placedWords,
+              activeNumber: _activeWord?.number,
+              activeOrientation: _activeWord?.orientation,
+              onWordTap: _showSolution ? null : (w) {
+                setState(() => _activeWord = w);
+                _gridKey.currentState?.selectWord(w.x, w.y, w.orientation);
+              },
+            ),
           ),
         ),
       ],

@@ -15,6 +15,7 @@ class PlacedWord {
   /// Row of the first letter (0-indexed).
   final int y;
   final String orientation; // 'across' | 'down'
+  final List<String> synonyms;
 
   PlacedWord({
     required this.number,
@@ -23,6 +24,7 @@ class PlacedWord {
     required this.x,
     required this.y,
     required this.orientation,
+    this.synonyms = const [],
   });
 
   @override

@@ -3,10 +3,22 @@ import '../crossword_generator.dart';
 
 /// Displays Across and Down clues in standard crossword format.
 /// Each clue is prefixed with its assigned grid number.
+/// Tapping a clue calls [onWordTap] so the grid can highlight the word.
 class CluePanel extends StatelessWidget {
   final List<PlacedWord> placedWords;
+  final void Function(PlacedWord)? onWordTap;
+  /// Number of the currently active word, for highlighting.
+  final int? activeNumber;
+  /// Orientation of the currently active word ('across' or 'down').
+  final String? activeOrientation;
 
-  const CluePanel({Key? key, required this.placedWords}) : super(key: key);
+  const CluePanel({
+    Key? key,
+    required this.placedWords,
+    this.onWordTap,
+    this.activeNumber,
+    this.activeOrientation,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -62,7 +74,7 @@ class CluePanel extends StatelessWidget {
             Expanded(
               child: ListView.builder(
                 itemCount: words.length,
-                itemBuilder: (_, i) => _clueRow(words[i]),
+                itemBuilder: (_, i) => _clueRow(words[i], accent),
               ),
             ),
           ],
@@ -71,29 +83,52 @@ class CluePanel extends StatelessWidget {
     );
   }
 
-  Widget _clueRow(PlacedWord w) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: RichText(
-        text: TextSpan(
-          style: const TextStyle(color: Colors.black87, fontSize: 13, height: 1.4),
-          children: [
-            TextSpan(
-              text: '${w.number}. ',
-              style: const TextStyle(fontWeight: FontWeight.bold),
+  Widget _clueRow(PlacedWord w, Color accent) {
+    final isActive =
+        w.number == activeNumber && w.orientation == activeOrientation;
+
+    return InkWell(
+      onTap: onWordTap == null ? null : () => onWordTap!(w),
+      borderRadius: BorderRadius.circular(4),
+      child: Container(
+        decoration: isActive
+            ? BoxDecoration(
+                color: accent.withAlpha(25),
+                borderRadius: BorderRadius.circular(4),
+                border: Border(
+                  left: BorderSide(color: accent, width: 3),
+                ),
+              )
+            : null,
+        padding: const EdgeInsets.fromLTRB(6, 4, 4, 4),
+        margin: const EdgeInsets.only(bottom: 2),
+        child: RichText(
+          text: TextSpan(
+            style: TextStyle(
+              color: isActive ? Colors.black : Colors.black87,
+              fontSize: 13,
+              height: 1.4,
+              fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
             ),
-            TextSpan(text: w.clue.isEmpty ? '(no clue)' : w.clue),
-            TextSpan(
-              text: '  (${w.word.length})',
-              style: const TextStyle(
-                color: Color(0xFF6B7280),
-                fontSize: 11,
-                fontStyle: FontStyle.italic,
+            children: [
+              TextSpan(
+                text: '${w.number}. ',
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
-            ),
-          ],
+              TextSpan(text: w.clue.isEmpty ? '(no clue)' : w.clue),
+              TextSpan(
+                text: '  (${w.word.length})',
+                style: const TextStyle(
+                  color: Color(0xFF6B7280),
+                  fontSize: 11,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
+

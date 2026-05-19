@@ -11,6 +11,8 @@ class CrosswordGrid extends StatefulWidget {
   final bool showSolution;
   final Map<String, int> cellNumbers;
   final void Function(int x, int y, String letter) onCellChanged;
+  /// Called whenever the selected cell or direction changes.
+  final void Function(int x, int y, String direction)? onSelectionChanged;
 
   const CrosswordGrid({
     Key? key,
@@ -19,6 +21,7 @@ class CrosswordGrid extends StatefulWidget {
     required this.showSolution,
     required this.cellNumbers,
     required this.onCellChanged,
+    this.onSelectionChanged,
   }) : super(key: key);
 
   @override
@@ -42,7 +45,24 @@ class CrosswordGridState extends State<CrosswordGrid> {
   int get _cols => _rows > 0 ? widget.solutionGrid[0].length : 0;
   bool _isBlack(int x, int y) => widget.solutionGrid[y][x].isEmpty;
 
-  // ── Public API (called by CrosswordKeyboard) ─────────────────────────────
+  // ── Public API (called by CrosswordKeyboard / game_screen) ──────────────
+
+  /// The currently selected cell and word direction.
+  /// [x] and [y] are null when nothing is selected.
+  ({int? x, int? y, String direction}) get selection =>
+      (x: _selX, y: _selY, direction: _dir);
+
+  /// Programmatically selects the word that starts at ([x],[y]) in [orientation].
+  /// Called when the user taps a clue in the clue panel.
+  void selectWord(int x, int y, String orientation) {
+    setState(() {
+      _selX = x;
+      _selY = y;
+      _dir = orientation;
+    });
+    _focus.requestFocus();
+    widget.onSelectionChanged?.call(x, y, orientation);
+  }
 
   void inputLetter(String letter) {
     if (_selX == null || _selY == null) return;
@@ -124,6 +144,7 @@ class CrosswordGridState extends State<CrosswordGrid> {
         }
       }
     });
+    widget.onSelectionChanged?.call(_selX!, _selY!, _dir);
   }
 
   // ── Physical keyboard (desktop / Chromebook) ─────────────────────────────
