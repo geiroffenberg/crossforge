@@ -14,14 +14,14 @@ class CrosswordGrid extends StatefulWidget {
   final void Function(int x, int y, String direction)? onSelectionChanged;
 
   const CrosswordGrid({
-    Key? key,
+    super.key,
     required this.solutionGrid,
     required this.displayGrid,
     required this.showSolution,
     required this.cellNumbers,
     required this.onCellChanged,
     this.onSelectionChanged,
-  }) : super(key: key);
+  });
 
   @override
   CrosswordGridState createState() => CrosswordGridState();
@@ -99,11 +99,15 @@ class CrosswordGridState extends State<CrosswordGrid> {
     final cells = <String>{};
     if (_dir == 'across') {
       int x = _selX!;
-      while (x > 0 && !_isBlack(x - 1, _selY!)) x--;
+      while (x > 0 && !_isBlack(x - 1, _selY!)) {
+        x--;
+      }
       while (x < _cols && !_isBlack(x, _selY!)) { cells.add('$x,${_selY!}'); x++; }
     } else {
       int y = _selY!;
-      while (y > 0 && !_isBlack(_selX!, y - 1)) y--;
+      while (y > 0 && !_isBlack(_selX!, y - 1)) {
+        y--;
+      }
       while (y < _rows && !_isBlack(_selX!, y)) { cells.add('${_selX!},$y'); y++; }
     }
     return cells;

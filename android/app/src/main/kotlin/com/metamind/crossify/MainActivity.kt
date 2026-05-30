@@ -1,4 +1,4 @@
-package com.example.crossify
+package com.metamind.crossify
 
 import io.flutter.embedding.android.FlutterActivity
 

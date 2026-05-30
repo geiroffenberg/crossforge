@@ -13,12 +13,12 @@ class CluePanel extends StatelessWidget {
   final String? activeOrientation;
 
   const CluePanel({
-    Key? key,
+    super.key,
     required this.placedWords,
     this.onWordTap,
     this.activeNumber,
     this.activeOrientation,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

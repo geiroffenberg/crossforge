@@ -3,7 +3,9 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/admob_config.dart';
 import '../crossword_generator.dart';
 import '../models/difficulty.dart';
 import '../services/score_service.dart';
@@ -137,7 +139,7 @@ Map<String, dynamic> _buildPuzzleIsolate(Map<String, dynamic> params) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class GameScreen extends StatefulWidget {
-  const GameScreen({Key? key}) : super(key: key);
+  const GameScreen({super.key});
 
   @override
   State<GameScreen> createState() => _GameScreenState();
@@ -166,15 +168,56 @@ class _GameScreenState extends State<GameScreen> {
   PlacedWord? _activeWord;
   DifficultyLevel _difficulty = DifficultyLevel.expert;
 
+  InterstitialAd? _interstitialAd;
+
   @override
   void dispose() {
+    _interstitialAd?.dispose();
     super.dispose();
   }
 
   @override
   void initState() {
     super.initState();
+    _loadInterstitialAd();
     _firstLoad();
+  }
+
+  void _loadInterstitialAd() {
+    final adUnitId = AdMobConfig.interstitialAdUnitId;
+    if (adUnitId.isEmpty) return;
+    InterstitialAd.load(
+      adUnitId: adUnitId,
+      request: const AdRequest(),
+      adLoadCallback: InterstitialAdLoadCallback(
+        onAdLoaded: (ad) => _interstitialAd = ad,
+        onAdFailedToLoad: (error) => _interstitialAd = null,
+      ),
+    );
+  }
+
+  /// Shows the interstitial (if ready) then generates a new puzzle.
+  /// Only call this from the post-completion "New Puzzle" button.
+  Future<void> _showInterstitialThenGenerate() async {
+    final ad = _interstitialAd;
+    _interstitialAd = null;
+    if (ad != null) {
+      ad.fullScreenContentCallback = FullScreenContentCallback(
+        onAdDismissedFullScreenContent: (a) {
+          a.dispose();
+          _loadInterstitialAd();
+          _generateNewPuzzle();
+        },
+        onAdFailedToShowFullScreenContent: (a, error) {
+          a.dispose();
+          _loadInterstitialAd();
+          _generateNewPuzzle();
+        },
+      );
+      await ad.show();
+    } else {
+      await _generateNewPuzzle();
+    }
   }
 
   /// Load the raw JSON string once, then immediately generate the first puzzle.
@@ -445,11 +488,13 @@ class _GameScreenState extends State<GameScreen> {
     for (final w in _placedWords) {
       if (w.orientation != sel.direction) continue;
       if (w.orientation == 'across') {
-        if (w.y == sel.y! && sel.x! >= w.x && sel.x! < w.x + w.word.length)
+        if (w.y == sel.y! && sel.x! >= w.x && sel.x! < w.x + w.word.length) {
           return w;
+        }
       } else {
-        if (w.x == sel.x! && sel.y! >= w.y && sel.y! < w.y + w.word.length)
+        if (w.x == sel.x! && sel.y! >= w.y && sel.y! < w.y + w.word.length) {
           return w;
+        }
       }
     }
     return null;
@@ -668,7 +713,7 @@ class _GameScreenState extends State<GameScreen> {
                     IconButton(
                       icon: const Icon(Icons.refresh),
                       tooltip: 'New Puzzle',
-                      onPressed: _generateNewPuzzle,
+                      onPressed: _showInterstitialThenGenerate,
                     ),
                   ]
                 : [
@@ -773,8 +818,9 @@ class _GameScreenState extends State<GameScreen> {
                   setState(() {
                     _activeWord = _placedWords.where((w) {
                       if (w.orientation != dir) return false;
-                      if (dir == 'across')
+                      if (dir == 'across') {
                         return w.y == y && x >= w.x && x < w.x + w.word.length;
+                      }
                       return w.x == x && y >= w.y && y < w.y + w.word.length;
                     }).firstOrNull;
                   });

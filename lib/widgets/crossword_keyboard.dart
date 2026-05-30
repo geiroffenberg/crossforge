@@ -11,10 +11,10 @@ class CrosswordKeyboard extends StatelessWidget {
   static const _row3 = ['Z','X','C','V','B','N','M'];
 
   const CrosswordKeyboard({
-    Key? key,
+    super.key,
     required this.onLetter,
     required this.onBackspace,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

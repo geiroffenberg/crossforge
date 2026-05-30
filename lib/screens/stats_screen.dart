@@ -4,7 +4,7 @@ import '../models/difficulty.dart';
 import '../services/score_service.dart';
 
 class StatsScreen extends StatefulWidget {
-  const StatsScreen({Key? key}) : super(key: key);
+  const StatsScreen({super.key});
 
   @override
   State<StatsScreen> createState() => _StatsScreenState();
@@ -233,7 +233,7 @@ class _StatsScreenState extends State<StatsScreen> {
                       barWidth: 2.5,
                       dotData: FlDotData(
                         show: true,
-                        getDotPainter: (spot, _, __, ___) =>
+                        getDotPainter: (spot, _, _, _) =>
                             FlDotCirclePainter(
                           radius: 3,
                           color: spot.y >= 100
@@ -276,7 +276,7 @@ class _StatsScreenState extends State<StatsScreen> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: reversed.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
+            separatorBuilder: (_, _) => const Divider(height: 1),
             itemBuilder: (_, i) => _historyTile(reversed[i], i + 1),
           ),
         ],

@@ -95,7 +95,7 @@ class CrosswordGenerator {
     // Words are stored UPPERCASE so the solution grid matches user input.
     final wordDefs = <String, String>{};
     for (final e in dictionary.entries) {
-      final word = (e.key as String).toUpperCase();
+      final word = (e.key).toUpperCase();
       if (word.length < _kMinLen || word.length > _kMaxLen) continue;
       final defs = (e.value as Map<String, dynamic>)['definitions'];
       if (defs is List && defs.isNotEmpty && defs[0] is String) {
@@ -109,7 +109,9 @@ class CrosswordGenerator {
     for (final w in wordDefs.keys) {
       byLength.putIfAbsent(w.length, () => []).add(w);
     }
-    for (final list in byLength.values) list.shuffle(_rng);
+    for (final list in byLength.values) {
+      list.shuffle(_rng);
+    }
 
     // ── Step 2: place seed word horizontally near centre ──────────────────
     String? seed;
@@ -299,7 +301,9 @@ class CrosswordGenerator {
   /// Two words starting at the same cell share the same number.
   void _assignNumbers() {
     final starts = <String>{};
-    for (final pw in _placedWords) starts.add('${pw.x},${pw.y}');
+    for (final pw in _placedWords) {
+      starts.add('${pw.x},${pw.y}');
+    }
 
     final sorted = starts.toList()
       ..sort((a, b) {
@@ -311,7 +315,9 @@ class CrosswordGenerator {
       });
 
     int num = 1;
-    for (final k in sorted) _cellNumbers[k] = num++;
+    for (final k in sorted) {
+      _cellNumbers[k] = num++;
+    }
 
     for (final pw in _placedWords) {
       pw.number = _cellNumbers['${pw.x},${pw.y}'] ?? 0;
